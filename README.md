@@ -104,3 +104,32 @@ This repository contains the OpenCore EFI created via **NullMoth 1401** and modi
   1. Restart and press Space at the OpenCore boot picker.
   2. Select **Reset NVRAM** (ResetNvramEntry is enabled in the EFI).
   3. Boot macOS.
+
+---
+
+## USB Tethering Guide (Android & iPhone)
+
+### 1. USB Port Mapping (Hardware Layer)
+- **What was fixed**: The previous setup used an unmapped dummy configuration (`UTBDefault.kext`), which caused macOS to exceed its 15-port limit on the 700-series chipset (26 ports total). Physical USB ports dropped or power-cycled when high-bandwidth devices (like tethered phones) were plugged in.
+- **Current status**: Physical USB 3 ports are now explicitly mapped via `UTBMap.kext`.
+
+### 2. iPhone USB Tethering
+- iPhone USB tethering is supported natively in macOS. Once plugged into any mapped USB port, enable **Personal Hotspot > Allow Others to Join** on your iPhone and tap "Trust This Computer".
+
+### 3. Android USB Tethering on macOS 15 Sequoia
+macOS **does not natively support Android's default RNDIS protocol**. On macOS 15 Sequoia, legacy `HoRNDIS.kext` is obsolete and causes kernel panics or boot freezes. Use either of the following modern methods:
+
+- **Method A: Native CDC-NCM / Ethernet Tethering (No software needed)**:
+  1. Connect your Android phone via USB cable.
+  2. On Android, go to **Settings > Network & Internet > Hotspot & Tethering**.
+  3. If available on your Android version, toggle **Ethernet Tethering** (or in Developer Options > **Default USB Configuration**, select **USB Ethernet / NCM**).
+  4. macOS recognizes this natively as a standard USB Ethernet interface.
+
+- **Method B: TetherKit (Modern user-space RNDIS for Sequoia)**:
+  1. Open Terminal in macOS and install [TetherKit](https://github.com/XiaoMiku01/TetherKit):
+     ```bash
+     brew install XiaoMiku01/tap/tetherkit
+     ```
+  2. Launch TetherKit and enable USB tethering on your phone.
+  3. It creates a virtual network interface without needing unstable kernel extensions or touching SIP!
+
