@@ -17,41 +17,20 @@ This repository contains the OpenCore EFI created via **NullMoth 1401** and modi
 
 ## Summary of Changes & File Documentation
 
-### 1. `EFI/OC/config.plist` (Stage 1: Pre-Patch / OCLP Detection)
-- **Kernel > Block**:
-  - Added `com.apple.iokit.IOSkywalkFamily` with Strategy `Exclude`, MinKernel `23.0.0`, Enabled `True` (allows downgrading Skywalk networking stack to macOS Sonoma/Sequoia compatible legacy version).
-- **Kernel > Add**:
-  - Added Wi-Fi stack in the strict sequence required by Dortania / OCLP:
-    1. `IOSkywalkFamily.kext` (v1.2.0)
-    2. `IO80211FamilyLegacy.kext` (v1.0.0)
-    3. `IO80211FamilyLegacy.kext/Contents/PlugIns/AirPortBrcmNIC.kext`
-    4. `AMFIPass.kext` (v1.4.1)
-    5. `AirportItlwm.kext` (v2.3.0 Ventura release for macOS 15)
-  - Disabled `itlwm.kext` (`Enabled = False`) to prevent conflicts with AirportItlwm.
-  - Re-ordered Bluetooth kexts to correct loading order:
-    1. `BlueToolFixup.kext` (v2.7.3)
-    2. `IntelBluetoothFirmware.kext` (v2.5.0)
-    3. `IntelBTPatcher.kext` (v2.5.0)
-  - Replaced dummy `UTBDefault.kext` with custom mapped `UTBMap.kext`.
-- **DeviceProperties > Add**:
-  - Added `PciRoot(0x0)/Pci(0x14,0x3)` (ACPI `\_SB.PC00.CNVW`):
-    - Spoofs the Intel Wi-Fi card as `BCM4360` (`pci14e4,43a0`, device-id `A0430000`, vendor-id `E4140000`).
-    - This allows OpenCore Legacy Patcher (OCLP) to detect a legacy Broadcom Wi-Fi adapter and install root patches into macOS Sequoia.
-- **NVRAM > 7C436110-AB2A-4BBB-A880-FE41995C9F82**:
-  - Set `csr-active-config` to `03080000` (hex: `<03 08 00 00>`) to permit OCLP root patching.
-  - Cleaned `boot-args`:
-    - Removed `amfi=0x80` and `amfi_get_out_of_my_way=0x1` (disabling AMFI globally breaks Bluetooth pairing, third-party permissions, and Wi-Fi daemons in Sequoia).
-    - Added `amfipassbeta` (ensures `AMFIPass.kext` activates on macOS 15 Darwin 24 kernel).
-    - Preserved `ipc_control_port_options=0` (required by OCLP).
-  - Added Bluetooth fix keys:
-    - `bluetoothExternalDongleFailed` = `00`
-    - `bluetoothInternalControllerInfo` = `0000000000000000000000000000`
-- **NVRAM > Delete > 7C436110-AB2A-4BBB-A880-FE41995C9F82**:
-  - Added `boot-args`, `csr-active-config`, `bluetoothExternalDongleFailed`, and `bluetoothInternalControllerInfo` so NVRAM updates apply without requiring manual clearing.
+### 1. `EFI/OC/config.plist` (Current Mode: macOS Installer / Recovery)
+- **USB Ports (Restored)**:
+  - Enabled `UTBDefault.kext` alongside `USBToolBox.kext` to ensure **every physical USB port is active** during the installation. Your 2.4G mouse/keyboard receiver and Android phone will work on any port.
+- **Android USB Tethering (`HoRNDIS.kext`)**:
+  - Injected `HoRNDIS.kext` (v9.3 64-bit for OpenCore) so your Android phone provides immediate internet connectivity to the macOS Recovery installer via USB cable.
+- **Kernel > Quirks**:
+  - Enabled `DisableIoMapperMapping: True` to prevent AppleVTD DMA stalls on network/USB devices.
+- **Wi-Fi Spoof & Block (Temporarily Disabled for Installer)**:
+  - Disabled the Skywalk downgrade block and commented out the Broadcom BCM4360 spoof (`#PciRoot(0x0)/Pci(0x14,0x3)`). Spoofing must not be active in Recovery because the installer ramdisk cannot run OCLP root patches.
 
-### 2. `EFI/OC/config-postpatch.plist` (Stage 2: Post-Patch / Daily Driver)
-- Identical to `config.plist`, except `DeviceProperties > Add > PciRoot(0x0)/Pci(0x14,0x3)` is commented out as `#PciRoot(0x0)/Pci(0x14,0x3)`.
-- Used after OCLP root patching is completed so `AirportItlwm.kext` directly attaches to the native Intel device.
+### 2. `EFI-PostInstall/` (For After macOS is Installed onto SSD)
+- Contains **`config-oclp-stage1.plist`** and **`config-oclp-stage2.plist`** ready to copy over to your EFI once you complete the macOS installation and boot into the desktop.
+- Stage 1 enables the BCM4360 spoof and Skywalk downgrade for OpenCore Legacy Patcher (OCLP) to detect your card.
+- Stage 2 disables the spoof after OCLP root patches are applied so `AirportItlwm.kext` provides native Wi-Fi.
 
 ### 3. `EFI/OC/Kexts/UTBMap.kext`
 - Custom USB injector map generated specifically for this machine's Intel 700 Series XHCI controller (`0000:00:14.0`).
