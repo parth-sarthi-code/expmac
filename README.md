@@ -17,20 +17,15 @@ This repository contains the OpenCore EFI created via **NullMoth 1401** and modi
 
 ## Summary of Changes & File Documentation
 
-### 1. `EFI/OC/config.plist` (Current Mode: macOS Installer / Recovery)
-- **USB Ports (Restored)**:
-  - Enabled `UTBDefault.kext` alongside `USBToolBox.kext` to ensure **every physical USB port is active** during the installation. Your 2.4G mouse/keyboard receiver and Android phone will work on any port.
-- **Android USB Tethering (`HoRNDIS.kext`)**:
-  - Injected `HoRNDIS.kext` (v9.3 64-bit for OpenCore) so your Android phone provides immediate internet connectivity to the macOS Recovery installer via USB cable.
-- **Kernel > Quirks**:
-  - Enabled `DisableIoMapperMapping: True` to prevent AppleVTD DMA stalls on network/USB devices.
-- **Wi-Fi Spoof & Block (Temporarily Disabled for Installer)**:
-  - Disabled the Skywalk downgrade block and commented out the Broadcom BCM4360 spoof (`#PciRoot(0x0)/Pci(0x14,0x3)`). Spoofing must not be active in Recovery because the installer ramdisk cannot run OCLP root patches.
+### 1. `EFI/OC/config.plist` (Current Mode: OCLP Stage 1)
+- Enables the Sequoia legacy Wi-Fi stack in this order: `IOSkywalkFamily.kext`, `IO80211FamilyLegacy.kext`, its `AirPortBrcmNIC.kext` plugin, then `AirportItlwm.kext`.
+- Enables the `IOSkywalkFamily` downgrade block and disables `itlwm.kext`; the native AirportItlwm and itlwm modes must not be enabled together.
+- Activates the existing BCM4360 spoof at `PciRoot(0x0)/Pci(0x14,0x3)` so OCLP can identify and root-patch the wireless device.
+- Leaves `UTBDefault.kext` and `HoRNDIS.kext` enabled for installation/recovery connectivity.
 
 ### 2. `EFI-PostInstall/` (For After macOS is Installed onto SSD)
-- Contains **`config-oclp-stage1.plist`** and **`config-oclp-stage2.plist`** ready to copy over to your EFI once you complete the macOS installation and boot into the desktop.
-- Stage 1 enables the BCM4360 spoof and Skywalk downgrade for OpenCore Legacy Patcher (OCLP) to detect your card.
-- Stage 2 disables the spoof after OCLP root patches are applied so `AirportItlwm.kext` provides native Wi-Fi.
+- `config-oclp-stage2.plist` is the post-root-patch configuration. It disables `itlwm.kext`, keeps the legacy Wi-Fi stack, and keeps the spoof commented out so `AirportItlwm.kext` provides native Wi-Fi.
+- The working Stage 1 configuration is `EFI/OC/config.plist`; keep it until OCLP finishes its root patch.
 
 ### 3. `EFI/OC/Kexts/UTBMap.kext`
 - Custom USB injector map generated specifically for this machine's Intel 700 Series XHCI controller (`0000:00:14.0`).
@@ -56,9 +51,9 @@ This repository contains the OpenCore EFI created via **NullMoth 1401** and modi
 ## Step-by-Step Instructions to Complete Setup
 
 ### Step 1: Boot with Stage 1 Config
-1. Your USB drive (`/run/media/parth/1401/EFI`) and this local EFI are already configured with the Stage 1 `config.plist`.
+1. Copy this repository's `EFI` to the EFI partition and boot macOS 15 Sequoia with `EFI/OC/config.plist`.
 2. Boot into macOS 15 Sequoia using this EFI.
-3. Open Terminal and verify SIP status with `csrutil status`.
+3. Open Terminal and verify SIP status with `csrutil status`. The guide requires `csr-active-config` to remain `03080000`.
 
 ### Step 2: Run OpenCore Legacy Patcher (OCLP)
 1. Download and install [OpenCore-Legacy-Patcher (OCLP)](https://github.com/dortania/OpenCore-Legacy-Patcher/releases).
@@ -71,8 +66,8 @@ This repository contains the OpenCore EFI created via **NullMoth 1401** and modi
 ### Step 3: Switch to Stage 2 (Disable Wi-Fi Spoof)
 1. Mount your EFI partition.
 2. In `EFI/OC/`:
-   - Either replace `config.plist` with `config-postpatch.plist` (rename `config-postpatch.plist` to `config.plist`), OR
-   - Edit `config.plist` and add a `#` in front of `PciRoot(0x0)/Pci(0x14,0x3)` under `DeviceProperties > Add`.
+  - Replace `config.plist` with `config-postpatch.plist`, or copy `EFI-PostInstall/config-oclp-stage2.plist` to `EFI/OC/config.plist`.
+  - Confirm `PciRoot(0x0)/Pci(0x14,0x3)` is commented out under `DeviceProperties > Add`.
 3. Reboot your system.
 4. **Done!** Native Apple Wi-Fi menu bar, Control Center, Wi-Fi networks, AirPlay, and Bluetooth will now be fully operational!
 
@@ -83,6 +78,11 @@ This repository contains the OpenCore EFI created via **NullMoth 1401** and modi
   1. Restart and press Space at the OpenCore boot picker.
   2. Select **Reset NVRAM** (ResetNvramEntry is enabled in the EFI).
   3. Boot macOS.
+
+## Wireless Change Log
+- `EFI/OC/config.plist`: enabled the Sequoia legacy Wi-Fi kext stack and IOSkywalk downgrade block, enabled the BCM4360 spoof for OCLP Stage 1, and disabled `itlwm.kext` to avoid conflicting Wi-Fi drivers.
+- No kext binaries or Bluetooth kexts were changed. `IntelBluetoothFirmware.kext`, `IntelBTPatcher.kext`, and `BlueToolFixup.kext` were already present and enabled.
+- `EFI/OC/config-postpatch.plist` and `EFI-PostInstall/config-oclp-stage2.plist` were not changed; they remain the native-Wi-Fi Stage 2 references.
 
 ---
 
